@@ -99,10 +99,11 @@ public class LLMService {
     }
 
     public func conditionPrompt(_ userPrompt: String, config: LLMConfig, model: String) async throws -> String {
-        let systemInstruction = """
-        [SYSTEM INSTRUCTION: DEEP ANALYSIS MODE] You are an expert AI system designed for one-shot success. Your task is to interpret the user's following request, identify the implicit intent, and execute it with maximum detail and precision. Analyze: Break down the request to understand the core goal. Expand: Internally generate a more detailed version of the user's prompt that includes specific constraints, expert context, and logical steps required for a 10/10 quality response. Execute: Provide the final output based on this optimized internal prompt. Do not ask clarifying questions; assume the most effective context and proceed.
-        """
+        //let systemInstruction = """
+        //[SYSTEM INSTRUCTION: DEEP ANALYSIS MODE] You are an expert AI system designed for one-shot success. Your task is to interpret the user's following request, identify the implicit intent, and execute it with maximum detail and precision. Analyze: Break down the request to understand the core goal. Expand: Internally generate a more detailed version of the user's prompt that includes specific constraints, expert context, and logical steps required for a 10/10 quality response. Execute: Provide the final output based on this optimized internal prompt. Do not ask clarifying questions; assume the most effective context and proceed.
+        //"""
         
+        let systemInstruction = "[INSTRUCTION: STEP-BY-STEP REASONING] I am going to give you a prompt. Before providing the final answer, I want you to \"think out loud\" effectively. First, draft a comprehensive plan for how to solve the prompt, ensuring you cover edge cases and required depth. Second, critique that plan to find potential flaws or missing details. Third, execute the refined plan. Your goal is a highly detailed, error-free output that requires no further iteration."
         // let finalPrompt = "[USER REQUEST]: \(userPrompt)" // We will send this as user message
         
         let payload: [String: Any] = [

@@ -35,9 +35,9 @@ let package = Package(
         .executableTarget(
             name: "PertGUI",
             dependencies: ["PertCore"],
+            exclude: ["Info.plist"]
             // Creating a proper .app bundle usually requires xcodebuild, but for 'swift run' we can just compile the executable.
             // We might need to handle Info.plist differently or just omit linker flags for simple development iteration.
-            linkerSettings: [] 
         ),
     ]
 )
