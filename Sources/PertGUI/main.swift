@@ -1,5 +1,6 @@
 import SwiftUI
 import PertCore
+import AVFoundation
 
 @main
 struct PertGUIApp: App {
@@ -34,6 +35,13 @@ struct ContentView: View {
 
     // Alert wrapper
     @State private var errorWrapper: ErrorWrapper?
+    
+    // Copy functionality
+    @State private var showToast: Bool = false
+    @State private var toastMessage: String = "Copied to clipboard"
+    @State private var hasAutoCopied = false
+    @State private var isCopyButtonPressed = false
+    @State private var audioPlayer: AVAudioPlayer?
 
     // Computed properties for visual polish
     private let randomMessages = [
@@ -151,6 +159,18 @@ struct ContentView: View {
             }
 
             ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    copyToClipboard()
+                    animateCopyButton()
+                }) {
+                    Image(systemName: "doc.on.doc")
+                        .scaleEffect(isCopyButtonPressed ? 0.9 : 1.0)
+                }
+                .disabled(outputText.isEmpty)
+                .help("Copy conditioned output")
+            }
+
+            ToolbarItem(placement: .automatic) {
                 Button(action: { showConfigSheet = true }) {
                     Label("Settings", systemImage: "gear")
                 }
@@ -202,6 +222,68 @@ struct ContentView: View {
         }
         .alert(item: $errorWrapper) { wrapper in
             Alert(title: Text("Error"), message: Text(wrapper.error), dismissButton: .default(Text("OK")))
+        }
+        .overlay(
+            VStack {
+                if showToast {
+                    Text(toastMessage)
+                        .font(.subheadline)
+                        .padding(12)
+                        .background(Color.black.opacity(0.8))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                        .padding(.bottom, 30)
+                }
+                Spacer()
+            },
+            alignment: .bottom
+        )
+    }
+    
+    private func animateCopyButton() {
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isCopyButtonPressed = true
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isCopyButtonPressed = false
+            }
+        }
+    }
+    
+    private func copyToClipboard() {
+        guard !outputText.isEmpty else { return }
+        
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        
+        let success = pasteboard.setString(outputText, forType: .string)
+        
+        if success {
+            // Play copy sound
+            NSSound.beep()
+            
+            // Show toast
+            if hasAutoCopied {
+                toastMessage = "Re-copied to clipboard"
+            } else {
+                toastMessage = "Copied to clipboard"
+            }
+            showToast = true
+            
+            Task {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                showToast = false
+            }
+        } else {
+            toastMessage = "Failed to copy to clipboard"
+            showToast = true
+            
+            Task {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                showToast = false
+            }
         }
     }
 
@@ -259,6 +341,19 @@ struct ContentView: View {
                     currentStep = "Ready"
                     progress = 0.0
                     isProcessing = false
+                    
+                    // Auto-copy the conditioned prompt
+                    if !hasAutoCopied {
+                        copyToClipboard()
+                        hasAutoCopied = true
+                        toastMessage = "Prompt automatically copied to clipboard"
+                        showToast = true
+                        
+                        Task {
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            showToast = false
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
