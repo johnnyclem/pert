@@ -1,0 +1,9 @@
+{
+  "active": true,
+  "iteration": 1,
+  "maxIterations": 0,
+  "completionPromise": "COMPLETE",
+  "prompt": "add button to copy conditioned prompt to pasteboard.",
+  "startedAt": "2026-01-24T01:32:57.766Z",
+  "model": ""
+}

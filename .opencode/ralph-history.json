@@ -1,0 +1,27 @@
+{
+  "iterations": [
+    {
+      "iteration": 1,
+      "startedAt": "2026-01-24T01:32:57.838Z",
+      "endedAt": "2026-01-24T01:32:59.002Z",
+      "durationMs": 1102,
+      "toolsUsed": {},
+      "filesModified": [
+        ".opencode/"
+      ],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mGoogle Generative AI API key is missing. Pass it using the 'apiKey' parameter or the GOOGLE_GENERATIVE_AI_API_KEY environment variable."
+      ]
+    }
+  ],
+  "totalDurationMs": 1102,
+  "struggleIndicators": {
+    "repeatedErrors": {
+      "\u001b[91m\u001b[1mError: \u001b[0mGoogle Generative AI API key is missing. Pass it using the 'apiKey' parameter or": 1
+    },
+    "noProgressIterations": 0,
+    "shortIterations": 1
+  }
+}
