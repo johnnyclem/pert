@@ -1,6 +1,6 @@
 {
   "active": true,
-  "iteration": 97,
+  "iteration": 98,
   "maxIterations": 0,
   "completionPromise": "COMPLETE",
   "prompt": "add button to copy conditioned prompt to pasteboard.",
