@@ -136,6 +136,21 @@ struct ContentView: View {
                             .opacity(inputText.isEmpty || isProcessing ? 0.6 : 1)
                             .animation(.easeInOut(duration: 0.2), value: isProcessing)
 
+                            Picker("Format", selection: $selectedOutputFormat) {
+                                ForEach(OutputFormat.allCases) { format in
+                                    Text(format.displayName).tag(format)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 180)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.7))
+                            .foregroundColor(warmTextPrimary)
+                            .cornerRadius(20)
+                            .disabled(isProcessing)
+                            .opacity(isProcessing ? 0.5 : 1)
+
                             Button(action: {
                                 copyToClipboard()
                                 animateCopyButton()
