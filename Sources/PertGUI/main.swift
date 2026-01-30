@@ -32,6 +32,7 @@ struct ContentView: View {
     @State private var manualBaseURL = ""
     @State private var manualAPIKey = ""
     @State private var useManualConfig = false
+    @State private var selectedOutputFormat: OutputFormat = .plainText
 
     // Alert wrapper
     @State private var errorWrapper: ErrorWrapper?
@@ -424,7 +425,7 @@ struct ContentView: View {
                 currentStep = "Processing prompt…"
                 progress = 1.0
                 currentStep = randomMessages.randomElement()!
-                let result = try await service.conditionPrompt(inputText, config: validConfig, model: bestModel)
+                let result = try await service.conditionPrompt(inputText, outputFormat: selectedOutputFormat, config: validConfig, model: bestModel)
 
                 await MainActor.run {
                     outputText = result

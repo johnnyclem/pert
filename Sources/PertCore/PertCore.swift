@@ -12,6 +12,140 @@ public struct LLMConfig: Codable {
     }
 }
 
+
+
+public struct OutputValidationResult {
+    public let outputText: String
+    public let errorMessage: String?
+    public let rawResponse: String?
+    public let isValid: Bool
+}
+
+public enum OutputFormatValidator {
+    public static func validate(response: String, format: OutputFormat) -> OutputValidationResult {
+        let sanitized = sanitize(response)
+        switch format {
+        case .plainText, .markdown:
+            return OutputValidationResult(outputText: sanitized, errorMessage: nil, rawResponse: sanitized, isValid: true)
+        case .ralphWiggumPRD:
+            guard let jsonCandidate = extractJSONArray(from: sanitized) else {
+                let message = "Formatting error: Expected a JSON array payload."
+                return OutputValidationResult(
+                    outputText: "\(message)\n\nRaw response (sanitized):\n\(sanitized)",
+                    errorMessage: message,
+                    rawResponse: sanitized,
+                    isValid: false
+                )
+            }
+
+            do {
+                let data = Data(jsonCandidate.utf8)
+                let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
+                guard let array = jsonObject as? [Any] else {
+                    let message = "Formatting error: JSON payload is not an array."
+                    return OutputValidationResult(
+                        outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
+                        errorMessage: message,
+                        rawResponse: jsonCandidate,
+                        isValid: false
+                    )
+                }
+
+                for (index, element) in array.enumerated() {
+                    guard let item = element as? [String: Any] else {
+                        let message = "Formatting error: Item \(index) is not an object."
+                        return OutputValidationResult(
+                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
+                            errorMessage: message,
+                            rawResponse: jsonCandidate,
+                            isValid: false
+                        )
+                    }
+
+                    let requiredKeys = ["category", "description", "dependencies", "status", "notes"]
+                    for key in requiredKeys where item[key] == nil {
+                        let message = "Formatting error: Item \(index) missing key '\(key)'."
+                        return OutputValidationResult(
+                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
+                            errorMessage: message,
+                            rawResponse: jsonCandidate,
+                            isValid: false
+                        )
+                    }
+
+                    guard item["category"] is String,
+                          item["description"] is String,
+                          item["status"] is String,
+                          item["notes"] is String else {
+                        let message = "Formatting error: Item \(index) has invalid string fields."
+                        return OutputValidationResult(
+                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
+                            errorMessage: message,
+                            rawResponse: jsonCandidate,
+                            isValid: false
+                        )
+                    }
+
+                    guard let dependencies = item["dependencies"] as? [Any],
+                          dependencies.allSatisfy({ $0 is Int || $0 is NSNumber }) else {
+                        let message = "Formatting error: Item \(index) dependencies must be an array of integers."
+                        return OutputValidationResult(
+                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
+                            errorMessage: message,
+                            rawResponse: jsonCandidate,
+                            isValid: false
+                        )
+                    }
+                }
+
+                let normalizedData = try JSONSerialization.data(withJSONObject: array, options: [.prettyPrinted, .sortedKeys])
+                let normalizedOutput = String(data: normalizedData, encoding: .utf8) ?? jsonCandidate
+                return OutputValidationResult(outputText: normalizedOutput, errorMessage: nil, rawResponse: normalizedOutput, isValid: true)
+            } catch {
+                let message = "Formatting error: Invalid JSON payload."
+                return OutputValidationResult(
+                    outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
+                    errorMessage: message,
+                    rawResponse: jsonCandidate,
+                    isValid: false
+                )
+            }
+        }
+    }
+
+    private static func sanitize(_ text: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            if CharacterSet.controlCharacters.contains(scalar) {
+                if scalar == "\n" || scalar == "\r" || scalar == "\t" {
+                    scalars.append(scalar)
+                }
+            } else {
+                scalars.append(scalar)
+            }
+        }
+        return String(scalars)
+    }
+
+    private static func extractJSONArray(from text: String) -> String? {
+        if let regex = try? NSRegularExpression(pattern: "```(?:json)?\\s*([\\s\\S]*?)\\s*```", options: []),
+           let match = regex.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range(at: 1), in: text) {
+            let fenced = String(text[range])
+            if fenced.contains("[") && fenced.contains("]") {
+                return fenced
+            }
+        }
+
+        guard let start = text.firstIndex(of: "["),
+              let end = text.lastIndex(of: "]"),
+              start < end else {
+            return nil
+        }
+        return String(text[start...end])
+    }
+}
+
 public enum LLMError: Error {
     case invalidURL
     case noData
@@ -98,12 +232,16 @@ public class LLMService {
         return models.first ?? "gpt-3.5-turbo" // Fallback
     }
 
-public func conditionPrompt(_ userPrompt: String, config: LLMConfig, model: String, outputFormat: OutputFormat) async throws -> String {
+    public func conditionPrompt(_ userPrompt: String, outputFormat: OutputFormat, config: LLMConfig, model: String) async throws -> String {
         //let systemInstruction = """
         //[SYSTEM INSTRUCTION: DEEP ANALYSIS MODE] You are an expert AI system designed for one-shot success. Your task is to interpret the user's following request, identify the implicit intent, and execute it with maximum detail and precision. Analyze: Break down the request to understand the core goal. Expand: Internally generate a more detailed version of the user's prompt that includes specific constraints, expert context, and logical steps required for a 10/10 quality response. Execute: Provide the final output based on this optimized internal prompt. Do not ask clarifying questions; assume the most effective context and proceed.
         //"""
 
         let systemInstruction = """
+        You are an expert assistant. Follow the output format instructions strictly.
+        \(outputFormat.formatInstruction)
+        Do not include explanations, code fences, or additional commentary.
+
         [INSTRUCTION: STEP-BY-STEP REASONING] I am going to give you a prompt. Before providing the final answer, I want you to "think out loud" effectively. First, draft a comprehensive plan for how to solve the prompt, ensuring you cover edge cases and required depth. Second, critique that plan to find potential flaws or missing details. Third, execute the refined plan. Your goal is a highly detailed, error-free output that requires no further iteration.
         \(outputFormat.systemInstruction)
         """        

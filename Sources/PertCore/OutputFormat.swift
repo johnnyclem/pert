@@ -32,4 +32,23 @@ public enum OutputFormat: String, CaseIterable, Identifiable, Codable {
             return "Respond in Markdown suitable for rich text rendering. Use headings and lists where helpful."
         }
     }
+
+    public var formatInstruction: String {
+        switch self {
+        case .plainText:
+            return "Return only plain text."
+        case .ralphWiggumPRD:
+            return """
+            Return ONLY a JSON array of objects. Each object MUST include:
+            - category (string)
+            - description (string)
+            - dependencies (array of integers)
+            - status (string)
+            - notes (string)
+            Do not add markdown fences or extra commentary.
+            """
+        case .markdown:
+            return "Return only markdown/rich text."
+        }
+    }
 }

@@ -41,7 +41,7 @@ struct PertCLI: AsyncParsableCommand {
             
             // print("Selected Model: \(bestModel)")
             
-            let result = try await service.conditionPrompt(prompt, config: config, model: bestModel)
+            let result = try await service.conditionPrompt(prompt, outputFormat: .plainText, config: config, model: bestModel)
             
             print("\n--- Result ---\n")
             print(result)
