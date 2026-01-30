@@ -28,8 +28,12 @@ public enum OutputFormatValidator {
         case .plainText, .markdown:
             return OutputValidationResult(outputText: sanitized, errorMessage: nil, rawResponse: sanitized, isValid: true)
         case .ralphWiggumPRD:
-            guard let jsonCandidate = extractJSONArray(from: sanitized) else {
-                let message = "Formatting error: Expected a JSON array payload."
+            let hasTitle = sanitized.contains("# PRD -")
+            let hasSections = sanitized.contains("## ")
+            let hasCheckboxes = sanitized.contains("- [ ")
+
+            if !hasTitle || !hasSections {
+                let message = "Formatting error: PRD must include a title heading (# PRD -) and section headings (##)."
                 return OutputValidationResult(
                     outputText: "\(message)\n\nRaw response (sanitized):\n\(sanitized)",
                     errorMessage: message,
@@ -38,78 +42,17 @@ public enum OutputFormatValidator {
                 )
             }
 
-            do {
-                let data = Data(jsonCandidate.utf8)
-                let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
-                guard let array = jsonObject as? [Any] else {
-                    let message = "Formatting error: JSON payload is not an array."
-                    return OutputValidationResult(
-                        outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
-                        errorMessage: message,
-                        rawResponse: jsonCandidate,
-                        isValid: false
-                    )
-                }
-
-                for (index, element) in array.enumerated() {
-                    guard let item = element as? [String: Any] else {
-                        let message = "Formatting error: Item \(index) is not an object."
-                        return OutputValidationResult(
-                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
-                            errorMessage: message,
-                            rawResponse: jsonCandidate,
-                            isValid: false
-                        )
-                    }
-
-                    let requiredKeys = ["category", "description", "dependencies", "status", "notes"]
-                    for key in requiredKeys where item[key] == nil {
-                        let message = "Formatting error: Item \(index) missing key '\(key)'."
-                        return OutputValidationResult(
-                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
-                            errorMessage: message,
-                            rawResponse: jsonCandidate,
-                            isValid: false
-                        )
-                    }
-
-                    guard item["category"] is String,
-                          item["description"] is String,
-                          item["status"] is String,
-                          item["notes"] is String else {
-                        let message = "Formatting error: Item \(index) has invalid string fields."
-                        return OutputValidationResult(
-                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
-                            errorMessage: message,
-                            rawResponse: jsonCandidate,
-                            isValid: false
-                        )
-                    }
-
-                    guard let dependencies = item["dependencies"] as? [Any],
-                          dependencies.allSatisfy({ $0 is Int || $0 is NSNumber }) else {
-                        let message = "Formatting error: Item \(index) dependencies must be an array of integers."
-                        return OutputValidationResult(
-                            outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
-                            errorMessage: message,
-                            rawResponse: jsonCandidate,
-                            isValid: false
-                        )
-                    }
-                }
-
-                let normalizedData = try JSONSerialization.data(withJSONObject: array, options: [.prettyPrinted, .sortedKeys])
-                let normalizedOutput = String(data: normalizedData, encoding: .utf8) ?? jsonCandidate
-                return OutputValidationResult(outputText: normalizedOutput, errorMessage: nil, rawResponse: normalizedOutput, isValid: true)
-            } catch {
-                let message = "Formatting error: Invalid JSON payload."
+            if !hasCheckboxes {
+                let message = "Formatting error: PRD must include task checkboxes (- [ ] format)."
                 return OutputValidationResult(
-                    outputText: "\(message)\n\nRaw response (sanitized):\n\(jsonCandidate)",
+                    outputText: "\(message)\n\nRaw response (sanitized):\n\(sanitized)",
                     errorMessage: message,
-                    rawResponse: jsonCandidate,
+                    rawResponse: sanitized,
                     isValid: false
                 )
             }
+
+            return OutputValidationResult(outputText: sanitized, errorMessage: nil, rawResponse: sanitized, isValid: true)
         }
     }
 
@@ -125,24 +68,6 @@ public enum OutputFormatValidator {
             }
         }
         return String(scalars)
-    }
-
-    private static func extractJSONArray(from text: String) -> String? {
-        if let regex = try? NSRegularExpression(pattern: "```(?:json)?\\s*([\\s\\S]*?)\\s*```", options: []),
-           let match = regex.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)),
-           let range = Range(match.range(at: 1), in: text) {
-            let fenced = String(text[range])
-            if fenced.contains("[") && fenced.contains("]") {
-                return fenced
-            }
-        }
-
-        guard let start = text.firstIndex(of: "["),
-              let end = text.lastIndex(of: "]"),
-              start < end else {
-            return nil
-        }
-        return String(text[start...end])
     }
 }
 
