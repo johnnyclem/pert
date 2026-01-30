@@ -88,108 +88,196 @@ struct ContentView: View {
         return .gray
     }
 
+    private let warmBackgroundStart = Color(red: 0.98, green: 0.95, blue: 0.90)
+    private let warmBackgroundEnd = Color(red: 0.99, green: 0.92, blue: 0.88)
+    private let cardFill = Color(red: 1.0, green: 0.98, blue: 0.95).opacity(0.75)
+    private let cardStroke = Color(red: 0.86, green: 0.78, blue: 0.70).opacity(0.35)
+    private let warmTextPrimary = Color(red: 0.28, green: 0.22, blue: 0.18)
+    private let warmTextSecondary = Color(red: 0.46, green: 0.38, blue: 0.30)
+    private let warmAccent = Color(red: 0.89, green: 0.54, blue: 0.36)
+    private let warmAccentSoft = Color(red: 0.93, green: 0.65, blue: 0.50)
+
     var body: some View {
-        HSplitView {
-            // Left Side: Input
-            VStack(alignment: .leading) {
-                Text("Prompt Input")
-                    .font(.headline)
-                    .padding(.bottom, 4)
+        ZStack {
+            LinearGradient(
+                colors: [warmBackgroundStart, warmBackgroundEnd],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-                TextEditor(text: $inputText)
-                    .font(.body)
-                    .frame(minWidth: 200, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
-                    .padding(4)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(8)
-                    .focused($isInputFocused)
-                    .onAppear {
-                        isInputFocused = true
-                    }
-            }
-            .padding()
-            .frame(minWidth: 300, maxWidth: .infinity)
-
-            // Right Side: Output
-            VStack(alignment: .leading) {
-                Text("Conditioned Output")
-                    .font(.headline)
-                    .padding(.bottom, 4)
-
-                ZStack {
-                    TextEditor(text: $outputText)
-                        .font(.body)
-                        .frame(minWidth: 200, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
-                        .padding(4)
-                        .background(Color(NSColor.textBackgroundColor))
-                        .cornerRadius(8)
-                        .focused($isOutputFocused)
-
-                    if isProcessing {
-                        VStack {
-                            if progress < 1.0 {
-                                ProgressView(value: progress, total: 1.0)
-                                    .progressViewStyle(.linear)
-                                    .scaleEffect(x: 1, y: 2, anchor: .center)
-                            } else {
-                                ProgressView()
-                                    .scaleEffect(1.5)
-                            }
-                            Text(currentStep)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
+            VStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Pert")
+                                .font(.title)
+                                .fontWeight(.semibold)
+                                .foregroundColor(warmTextPrimary)
+                            Text("Warm, focused prompt conditioning with a little delight.")
+                                .font(.title3)
+                                .foregroundColor(warmTextSecondary)
                         }
-                        .padding()
-                        .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
-                        .cornerRadius(8)
+
+                        Spacer()
+
+                        HStack(spacing: 12) {
+                            Button(action: processPrompt) {
+                                Label("Process", systemImage: "sparkles")
+                                    .padding(.horizontal, 18)
+                                    .padding(.vertical, 10)
+                                    .background(warmAccent)
+                                    .foregroundColor(.white)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(inputText.isEmpty || isProcessing)
+                            .opacity(inputText.isEmpty || isProcessing ? 0.6 : 1)
+                            .animation(.easeInOut(duration: 0.2), value: isProcessing)
+
+                            Button(action: {
+                                copyToClipboard()
+                                animateCopyButton()
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .padding(10)
+                                    .background(warmAccentSoft)
+                                    .foregroundColor(.white)
+                                    .clipShape(Circle())
+                                    .scaleEffect(isCopyButtonPressed ? 0.9 : 1.0)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(outputText.isEmpty)
+                            .opacity(outputText.isEmpty ? 0.5 : 1)
+                            .help("Copy conditioned output")
+
+                            Button(action: { showConfigSheet = true }) {
+                                Image(systemName: "gearshape.fill")
+                                    .padding(10)
+                                    .background(Color.white.opacity(0.7))
+                                    .foregroundColor(warmTextPrimary)
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                }
-            }
-            .padding()
-            .frame(minWidth: 300, maxWidth: .infinity)
-        }
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button(action: processPrompt) {
-                    Label("Process", systemImage: "play.fill")
-                }
-                .disabled(inputText.isEmpty || isProcessing)
-            }
 
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    copyToClipboard()
-                    animateCopyButton()
-                }) {
-                    Image(systemName: "doc.on.doc")
-                        .scaleEffect(isCopyButtonPressed ? 0.9 : 1.0)
-                }
-                .disabled(outputText.isEmpty)
-                .help("Copy conditioned output")
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button(action: { showConfigSheet = true }) {
-                    Label("Settings", systemImage: "gear")
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                HStack {
-                    Image(systemName: statusIcon)
-                    if let model = currentModel {
-                        Text("Using \(model)")
-                            .font(.subheadline)
-                    } else {
-                        Text(currentStep)
-                            .font(.subheadline)
+                    HStack(spacing: 8) {
+                        Image(systemName: statusIcon)
+                        if let model = currentModel {
+                            Text("Using \(model)")
+                        } else {
+                            Text(currentStep)
+                        }
                     }
+                    .font(.subheadline)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.6))
+                    .foregroundColor(statusColor)
+                    .clipShape(Capsule())
                 }
-                .foregroundColor(statusColor)
+
+                HStack(spacing: 24) {
+                    // Left Side: Input
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Prompt Input")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(warmTextPrimary)
+
+                        Text("Drop in your raw idea and we’ll help shape it.")
+                            .font(.callout)
+                            .foregroundColor(warmTextSecondary)
+
+                        TextEditor(text: $inputText)
+                            .font(.body)
+                            .foregroundColor(warmTextPrimary)
+                            .frame(minWidth: 200, maxWidth: .infinity, minHeight: 280, maxHeight: .infinity)
+                            .padding(8)
+                            .background(Color(NSColor.windowBackgroundColor))
+                            .cornerRadius(12)
+                            .focused($isInputFocused)
+                            .onAppear {
+                                isInputFocused = true
+                            }
+                    }
+                    .padding(20)
+                    .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(cardFill)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .stroke(cardStroke, lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 8)
+                    )
+
+                    // Right Side: Output
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Conditioned Output")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(warmTextPrimary)
+
+                        Text("Clean, structured prompts ready to use.")
+                            .font(.callout)
+                            .foregroundColor(warmTextSecondary)
+
+                        ZStack {
+                            TextEditor(text: $outputText)
+                                .font(.body)
+                                .foregroundColor(warmTextPrimary)
+                                .frame(minWidth: 200, maxWidth: .infinity, minHeight: 280, maxHeight: .infinity)
+                                .padding(8)
+                                .background(Color(NSColor.windowBackgroundColor))
+                                .cornerRadius(12)
+                                .focused($isOutputFocused)
+
+                            if isProcessing {
+                                VStack(spacing: 12) {
+                                    if progress < 1.0 {
+                                        ProgressView(value: progress, total: 1.0)
+                                            .progressViewStyle(.linear)
+                                            .scaleEffect(x: 1, y: 2, anchor: .center)
+                                    } else {
+                                        ProgressView()
+                                            .scaleEffect(1.5)
+                                    }
+                                    Text(currentStep)
+                                        .font(.caption)
+                                        .foregroundColor(warmTextSecondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                }
+                                .padding(20)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 6)
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                            }
+                        }
+                    }
+                    .padding(20)
+                    .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(cardFill)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .stroke(cardStroke, lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 8)
+                    )
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .animation(.easeInOut(duration: 0.25), value: showToast)
+        .animation(.easeInOut(duration: 0.25), value: isProcessing)
         .sheet(isPresented: $showConfigSheet) {
             VStack(spacing: 20) {
                 Text("Configuration")
@@ -227,12 +315,15 @@ struct ContentView: View {
             VStack {
                 if showToast {
                     Text(toastMessage)
-                        .font(.subheadline)
-                        .padding(12)
-                        .background(Color.black.opacity(0.8))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        .padding(.bottom, 30)
+                        .font(.callout)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 16)
+                        .background(Color(red: 0.95, green: 0.83, blue: 0.72))
+                        .foregroundColor(warmTextPrimary)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 6)
+                        .padding(.bottom, 32)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
                 Spacer()
             },
