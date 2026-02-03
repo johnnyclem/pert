@@ -51,6 +51,10 @@ let package = Package(
         ),
         // Tests
         .testTarget(
+            name: "PertCoreTests",
+            dependencies: ["PertCore"]
+        ),
+        .testTarget(
             name: "PertIOSCoreTests",
             dependencies: ["PertIOSCore", "PertCore"]
         ),
