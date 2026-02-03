@@ -3,6 +3,7 @@ package com.pert.copyprompt.viewmodel
 import android.content.ClipboardManager
 import android.content.Context
 import android.media.SoundPool
+import com.pert.copyprompt.R
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -147,5 +148,11 @@ class CopyPromptViewModelTest {
         val largePrompt = "A".repeat(100_000)
         vm.setConditionedPrompt(largePrompt)
         assertEquals(largePrompt, vm.conditionedPrompt)
+    }
+
+    @Test
+    fun `copy sound asset file exists in raw resources`() {
+        val resId = R.raw.copy
+        assertTrue("R.raw.copy resource ID should be non-zero", resId != 0)
     }
 }

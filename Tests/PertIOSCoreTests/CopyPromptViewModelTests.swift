@@ -1,5 +1,6 @@
 #if canImport(UIKit)
 import XCTest
+import AVFoundation
 @testable import PertIOSCore
 import PertCore
 
@@ -87,6 +88,25 @@ final class CopyPromptViewModelTests: XCTestCase {
         vm.setConditionedPrompt(largePrompt)
         vm.copyToClipboard()
         XCTAssertEqual(UIPasteboard.general.string, largePrompt)
+    }
+
+    // MARK: - Sound Asset Tests
+
+    func testCopySoundAssetExists() {
+        let url = Bundle.module.url(forResource: "copy", withExtension: "mp3")
+        XCTAssertNotNil(url, "copy.mp3 should be bundled in PertIOSCore resources")
+    }
+
+    func testCopySoundAssetIsValidAudio() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "copy", withExtension: "mp3"))
+        let data = try Data(contentsOf: url)
+        XCTAssertGreaterThan(data.count, 0, "copy.mp3 should not be empty")
+    }
+
+    func testCopySoundAssetIsLoadable() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "copy", withExtension: "mp3"))
+        let player = try AVAudioPlayer(contentsOf: url)
+        XCTAssertGreaterThan(player.duration, 0, "copy.mp3 should have a positive duration")
     }
 }
 #else
