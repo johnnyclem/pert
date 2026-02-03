@@ -13,8 +13,10 @@ public class CopyPromptViewModel: ObservableObject {
     @Published public var isCopyButtonPressed: Bool = false
 
     private var audioPlayer: AVAudioPlayer?
+    private let clipboardService: ClipboardServiceProtocol
 
-    public init() {
+    public init(clipboardService: ClipboardServiceProtocol = ClipboardService()) {
+        self.clipboardService = clipboardService
         loadSound()
     }
 
@@ -38,10 +40,13 @@ public class CopyPromptViewModel: ObservableObject {
     public func copyToClipboard() {
         guard !conditionedPrompt.isEmpty else { return }
 
-        UIPasteboard.general.string = conditionedPrompt
-        playSound()
-
-        toastMessage = "Copied to clipboard"
+        let success = clipboardService.copyText(conditionedPrompt)
+        if success {
+            playSound()
+            toastMessage = "Copied to clipboard"
+        } else {
+            toastMessage = "Failed to copy to clipboard"
+        }
         showToast = true
 
         Task {
@@ -58,10 +63,13 @@ public class CopyPromptViewModel: ObservableObject {
     private func autoCopy() {
         guard !conditionedPrompt.isEmpty else { return }
 
-        UIPasteboard.general.string = conditionedPrompt
-        playSound()
-
-        toastMessage = "Prompt automatically copied to clipboard"
+        let success = clipboardService.copyText(conditionedPrompt)
+        if success {
+            playSound()
+            toastMessage = "Prompt automatically copied to clipboard"
+        } else {
+            toastMessage = "Failed to copy to clipboard"
+        }
         showToast = true
 
         Task {

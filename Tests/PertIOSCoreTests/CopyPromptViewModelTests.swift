@@ -4,6 +4,24 @@ import AVFoundation
 @testable import PertIOSCore
 import PertCore
 
+/// Mock clipboard for testing without side effects on UIPasteboard.general.
+final class MockClipboardService: ClipboardServiceProtocol {
+    var storedText: String?
+    var shouldFail: Bool = false
+    var copyCallCount: Int = 0
+
+    func copyText(_ text: String) -> Bool {
+        copyCallCount += 1
+        if shouldFail { return false }
+        storedText = text
+        return true
+    }
+
+    func getText() -> String? {
+        return storedText
+    }
+}
+
 @MainActor
 final class CopyPromptViewModelTests: XCTestCase {
 
@@ -31,30 +49,55 @@ final class CopyPromptViewModelTests: XCTestCase {
     }
 
     func testCopyToClipboardWithEmptyPrompt() {
-        let vm = CopyPromptViewModel()
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
         vm.copyToClipboard()
         // Should not show toast when prompt is empty
         XCTAssertFalse(vm.showToast)
+        XCTAssertEqual(mock.copyCallCount, 0)
     }
 
     func testCopyToClipboardWithContent() {
-        let vm = CopyPromptViewModel()
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
         vm.setConditionedPrompt("Copy me")
         vm.copyToClipboard()
         XCTAssertTrue(vm.showToast)
         XCTAssertEqual(vm.toastMessage, "Copied to clipboard")
-        // Verify clipboard content
-        XCTAssertEqual(UIPasteboard.general.string, "Copy me")
+        XCTAssertEqual(mock.storedText, "Copy me")
+    }
+
+    func testCopyToClipboardFailure() {
+        let mock = MockClipboardService()
+        mock.shouldFail = true
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.setConditionedPrompt("Copy me")
+        vm.copyToClipboard()
+        XCTAssertTrue(vm.showToast)
+        XCTAssertEqual(vm.toastMessage, "Failed to copy to clipboard")
+        XCTAssertNil(mock.storedText)
     }
 
     func testOnConditioningComplete() {
-        let vm = CopyPromptViewModel()
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
         vm.onConditioningComplete(prompt: "Conditioned result")
         XCTAssertEqual(vm.conditionedPrompt, "Conditioned result")
         XCTAssertTrue(vm.isConditioned)
         XCTAssertTrue(vm.showToast)
         XCTAssertEqual(vm.toastMessage, "Prompt automatically copied to clipboard")
-        XCTAssertEqual(UIPasteboard.general.string, "Conditioned result")
+        XCTAssertEqual(mock.storedText, "Conditioned result")
+    }
+
+    func testOnConditioningCompleteFailure() {
+        let mock = MockClipboardService()
+        mock.shouldFail = true
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.onConditioningComplete(prompt: "Conditioned result")
+        XCTAssertEqual(vm.conditionedPrompt, "Conditioned result")
+        XCTAssertTrue(vm.isConditioned)
+        XCTAssertTrue(vm.showToast)
+        XCTAssertEqual(vm.toastMessage, "Failed to copy to clipboard")
     }
 
     func testAnimateCopyButton() {
@@ -64,30 +107,60 @@ final class CopyPromptViewModelTests: XCTestCase {
     }
 
     func testCopyToClipboardUpdatesClipboard() {
-        let vm = CopyPromptViewModel()
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
         let testString = "Unique test string \(UUID().uuidString)"
         vm.setConditionedPrompt(testString)
         vm.copyToClipboard()
-        XCTAssertEqual(UIPasteboard.general.string, testString)
+        XCTAssertEqual(mock.storedText, testString)
     }
 
     func testMultipleCopiesOverwrite() {
-        let vm = CopyPromptViewModel()
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
         vm.setConditionedPrompt("First")
         vm.copyToClipboard()
-        XCTAssertEqual(UIPasteboard.general.string, "First")
+        XCTAssertEqual(mock.storedText, "First")
 
         vm.setConditionedPrompt("Second")
         vm.copyToClipboard()
-        XCTAssertEqual(UIPasteboard.general.string, "Second")
+        XCTAssertEqual(mock.storedText, "Second")
     }
 
     func testLargePromptCopy() {
-        let vm = CopyPromptViewModel()
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
         let largePrompt = String(repeating: "A", count: 100_000)
         vm.setConditionedPrompt(largePrompt)
         vm.copyToClipboard()
-        XCTAssertEqual(UIPasteboard.general.string, largePrompt)
+        XCTAssertEqual(mock.storedText, largePrompt)
+    }
+
+    func testCopyCallCount() {
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.setConditionedPrompt("Test")
+        vm.copyToClipboard()
+        vm.copyToClipboard()
+        vm.copyToClipboard()
+        XCTAssertEqual(mock.copyCallCount, 3)
+    }
+
+    // MARK: - ClipboardService integration tests
+
+    func testRealClipboardServiceCopyAndGet() {
+        let service = ClipboardService()
+        let testString = "clipboard-test-\(UUID().uuidString)"
+        let success = service.copyText(testString)
+        XCTAssertTrue(success)
+        XCTAssertEqual(service.getText(), testString)
+    }
+
+    func testRealClipboardServiceOverwrite() {
+        let service = ClipboardService()
+        _ = service.copyText("first")
+        _ = service.copyText("second")
+        XCTAssertEqual(service.getText(), "second")
     }
 
     // MARK: - Sound Asset Tests
