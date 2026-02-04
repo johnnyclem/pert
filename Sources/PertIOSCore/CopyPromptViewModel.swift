@@ -11,12 +11,18 @@ public class CopyPromptViewModel: ObservableObject {
     @Published public var showToast: Bool = false
     @Published public var toastMessage: String = "Copied to clipboard"
     @Published public var isCopyButtonPressed: Bool = false
+    @Published public var inputPrompt: String = ""
+    @Published public var isConditioning: Bool = false
+    @Published public var conditioningError: String?
+    @Published public var selectedOutputFormat: OutputFormat = .plainText
 
     private var audioPlayer: AVAudioPlayer?
     private let clipboardService: ClipboardServiceProtocol
+    private let llmService: LLMService
 
-    public init(clipboardService: ClipboardServiceProtocol = ClipboardService()) {
+    public init(clipboardService: ClipboardServiceProtocol = ClipboardService(), llmService: LLMService = LLMService()) {
         self.clipboardService = clipboardService
+        self.llmService = llmService
         loadSound()
     }
 
@@ -75,6 +81,31 @@ public class CopyPromptViewModel: ObservableObject {
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             showToast = false
+        }
+    }
+
+    public func conditionPrompt() async {
+        let prompt = inputPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else { return }
+
+        isConditioning = true
+        conditioningError = nil
+
+        do {
+            guard let config = await llmService.detectLocalService() else {
+                conditioningError = "No local LLM service found"
+                isConditioning = false
+                return
+            }
+
+            let models = try await llmService.fetchModels(config: config)
+            let model = llmService.selectBestModel(models: models)
+            let result = try await llmService.conditionPrompt(prompt, outputFormat: selectedOutputFormat, config: config, model: model)
+            isConditioning = false
+            onConditioningComplete(prompt: result)
+        } catch {
+            conditioningError = error.localizedDescription
+            isConditioning = false
         }
     }
 

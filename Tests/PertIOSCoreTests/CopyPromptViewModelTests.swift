@@ -32,6 +32,10 @@ final class CopyPromptViewModelTests: XCTestCase {
         XCTAssertFalse(vm.showToast)
         XCTAssertEqual(vm.toastMessage, "Copied to clipboard")
         XCTAssertFalse(vm.isCopyButtonPressed)
+        XCTAssertEqual(vm.inputPrompt, "")
+        XCTAssertFalse(vm.isConditioning)
+        XCTAssertNil(vm.conditioningError)
+        XCTAssertEqual(vm.selectedOutputFormat, .plainText)
     }
 
     func testSetConditionedPrompt() {
@@ -144,6 +148,74 @@ final class CopyPromptViewModelTests: XCTestCase {
         vm.copyToClipboard()
         vm.copyToClipboard()
         XCTAssertEqual(mock.copyCallCount, 3)
+    }
+
+    // MARK: - Conditioned prompt state management tests
+
+    func testInputPromptBinding() {
+        let vm = CopyPromptViewModel()
+        vm.inputPrompt = "Hello world"
+        XCTAssertEqual(vm.inputPrompt, "Hello world")
+    }
+
+    func testSelectedOutputFormatBinding() {
+        let vm = CopyPromptViewModel()
+        vm.selectedOutputFormat = .markdown
+        XCTAssertEqual(vm.selectedOutputFormat, .markdown)
+        vm.selectedOutputFormat = .ralphWiggumPRD
+        XCTAssertEqual(vm.selectedOutputFormat, .ralphWiggumPRD)
+    }
+
+    func testConditionPromptWithEmptyInput() async {
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.inputPrompt = ""
+        await vm.conditionPrompt()
+        XCTAssertFalse(vm.isConditioning)
+        XCTAssertFalse(vm.isConditioned)
+        XCTAssertNil(vm.conditioningError)
+    }
+
+    func testConditionPromptWithWhitespaceInput() async {
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.inputPrompt = "   \n\t  "
+        await vm.conditionPrompt()
+        XCTAssertFalse(vm.isConditioning)
+        XCTAssertFalse(vm.isConditioned)
+        XCTAssertNil(vm.conditioningError)
+    }
+
+    func testConditionPromptSetsErrorWhenNoService() async {
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.inputPrompt = "Test prompt"
+        await vm.conditionPrompt()
+        // No local LLM service is running in test environment
+        XCTAssertFalse(vm.isConditioning)
+        XCTAssertNotNil(vm.conditioningError)
+        XCTAssertEqual(vm.conditioningError, "No local LLM service found")
+    }
+
+    func testConditioningErrorClearsOnRetry() async {
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.inputPrompt = "Test prompt"
+        // First attempt sets error
+        await vm.conditionPrompt()
+        XCTAssertNotNil(vm.conditioningError)
+        // Second attempt clears old error before trying again
+        // (will still fail since no service, but error should be freshly set)
+        await vm.conditionPrompt()
+        XCTAssertEqual(vm.conditioningError, "No local LLM service found")
+    }
+
+    func testIsConditioningFalseAfterCompletion() async {
+        let mock = MockClipboardService()
+        let vm = CopyPromptViewModel(clipboardService: mock)
+        vm.inputPrompt = "Test"
+        await vm.conditionPrompt()
+        XCTAssertFalse(vm.isConditioning)
     }
 
     // MARK: - ClipboardService integration tests
